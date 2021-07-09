@@ -35,6 +35,7 @@ class PomAnalyzer():
 	def __init__(self, path):
 		self.__path = path
 		self.__parent = None
+		self.__children = []
 		self.__dependencies = []
 		self.analyze_file()
 
@@ -96,6 +97,9 @@ class PomAnalyzer():
 	def set_parent(self, pom):
 		self.__parent = pom
 
+	def add_child(self, pom):
+		self.__children.append(pom)
+
 	def get_parent(self):
 		return self.__parent
 
@@ -121,13 +125,14 @@ class PomAnalyzer():
 				if p.get_identifier() == parent_id:
 					found = True
 					pom.set_parent(p)
+					p.add_child(pom)
 					if self.__pom['groupId'] == '':
 						self.__pom['groupId'] = self.__parent.__pom['groupId']
 					if self.__pom['version'] == '':
 						self.__pom['version'] = self.__parent.__pom['version']
 					break
 			else:
-				print(f'[!] Cannot find parent in pom files with id "{parent_id}"')
+				print(f'[!] "{self.get_identifier()}" cannot find parent in pom files with id "{parent_id}"')
 
 		for dep in self.__pom['dependencies'] + self.__pom['dependencies_management']:
 			groupId = self.resolve_property(dep['groupId'])
@@ -151,15 +156,22 @@ class PomAnalyzer():
 			prop_name = prop[2:-1].lower()
 			prop_value = ''
 
-			if prop_name == 'project.version':
-				prop_value = self.__pom['version']
+			if prop_name[:8] == 'project.':
+				project_prop_name = prop_name[8:].lower()
+
+				for k, v in self.__pom.items():
+					if k.lower() == project_prop_name:
+						prop_value = self.__pom[k]
+						break
+				else:
+					raise Exception(f'Cannot find property "{project_prop_name}" in current project properties.')
 			else:
 				if prop_name in self.__pom['properties']:
 					prop_value = self.__pom['properties'][prop_name]
 				elif self.__parent:
 					prop_value = self.__parent.resolve_property(property_value)
 				else:
-					raise Exception(f'Cannot find property "{prop}"')
+					raise Exception(f'Cannot find property "{prop}".')
 
 			property_value = property_value.replace(prop, prop_value)
 
